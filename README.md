@@ -1,6 +1,7 @@
 # Eagle Viewer — AndroidからEagleライブラリをWi-Fi経由で閲覧
-<img alt="hogehoge" src="https://github.com/user-attachments/assets/7557cc35-98ae-440f-ae59-b2532c1a63ec" width="30%">
-<img alt="hogehoge" src="https://github.com/user-attachments/assets/4ff11c9e-00f4-491b-9122-79c0bbfc4297" width="30%">
+<img alt="hogehoge" src="https://github.com/user-attachments/assets/7557cc35-98ae-440f-ae59-b2532c1a63ec" width="20%">
+<img alt="hogehoge" src="https://github.com/user-attachments/assets/4ff11c9e-00f4-491b-9122-79c0bbfc4297" width="20%">
+<img alt="hogehoge" src="https://github.com/user-attachments/assets/337bfe3c-ce29-4e30-9325-11056d7cd19a" width="20%">
 
 ## はじめに
 
