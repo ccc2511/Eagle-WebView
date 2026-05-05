@@ -143,7 +143,6 @@ AndroidのChromeで開く: http://192.168.0.xxx:8080/
 
 - このツールは **ローカルネットワーク専用** です。外部公開する場合は適切なセキュリティ対策を行ってください
 - Eagle API の利用は [Eagle の利用規約](https://developer.eagle.cool) に従います
-- `config.ini` には API トークンが含まれるため、GitHub 等に公開しないようにしてください（`.gitignore` 設定済み）
 
 ---
 
