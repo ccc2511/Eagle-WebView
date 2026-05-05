@@ -1,4 +1,6 @@
-# Eagle Viewer — AndroidからEagleライブラリをWi-Fi経由で閲覧するツール
+# Eagle Viewer — AndroidからEagleライブラリをWi-Fi経由で閲覧
+<img alt="hogehoge" src="https://github.com/user-attachments/assets/7557cc35-98ae-440f-ae59-b2532c1a63ec" width="30%">
+<img alt="hogehoge" src="https://github.com/user-attachments/assets/4ff11c9e-00f4-491b-9122-79c0bbfc4297" width="30%">
 
 ## はじめに
 
@@ -12,7 +14,7 @@
 
 - **PC**（Windows）に Eagle がインストール済みであること
 - **Android スマートフォン**（Chrome または Firefox 推奨）
-    ※iOSでも動作すると思いますがiPhone持ってないので未検証です
+    ※iOSでも動作すると思いますが未検証です
 - **Python 3.x**（PC にインストール済みであること）
    pythonインストール(公式) https://www.python.jp/install/windows/install.html
 - PC と Android が **同じ Wi-Fi** に接続していること（または VPN）
@@ -85,7 +87,7 @@ AndroidのChromeで開く: http://192.168.0.xxx:8080/
 | 検索バー | 名前またはタグで全文検索。Enter キーで実行 |
 | ☆ フィルタ | Eagle の星評価（1〜5）で絞り込み |
 | 作成日↓ | ソート順の切替 ※現在機能しません  |
-| 🖼 ボタン | スマホの画像をアップロードして類似検索 |
+| 🖼 ボタン | スマホの画像をアップロードして類似検索<br> ※EagleにAI searchプラグインの導入と、事前のライブラリ解析が必要です。[詳細](https://jp.eagle.cool/support/article/ai-search)|
 | 📁 ボタン | フォルダ・スマートフォルダで絞り込み |
 | ⟳ ボタン | Eagle を再起動してタグを再収集 |
 | 件数表示 | 右上に現在の検索結果件数を表示 |
