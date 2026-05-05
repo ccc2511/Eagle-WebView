@@ -1,0 +1,22 @@
+[eagle]
+# Eagle API のポート番号（通常は変更不要）
+port = 41595
+
+# Eagle V2 API トークン
+# Eagle アプリ → 設定 → 開発者 → API トークン で確認
+token = ここにAPIキーを転記
+
+[server]
+# プロキシサーバーのポート番号
+port = 8080
+
+# 配信するHTMLファイル名
+html_file = eagle-viewer.html
+
+[thumbnail]
+# WebP変換を有効化するか（true/false）
+# pip install Pillow が必要
+webp_enabled = true
+
+# WebP画質（0-100）リサイズなし
+webp_quality = 75

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eagle タグ正規化ツール</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1a1a1a; color: #e0e0e0; font-family: sans-serif; padding: 16px; }
+  h1 { font-size: 18px; margin-bottom: 4px; color: #c8f135; }
+  .sub { font-size: 12px; color: #888; margin-bottom: 16px; }
+  .card { background: #2a2a2a; border: 1px solid #333; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  .card-title { font-weight: 700; margin-bottom: 6px; font-size: 14px; }
+  .note { font-size: 11px; color: #666; margin-bottom: 8px; }
+  button { background: #c8f135; color: #000; border: none; border-radius: 10px; font-weight: 700; font-size: 14px; padding: 12px 16px; cursor: pointer; width: 100%; }
+  button.danger { background: #e53935; color: #fff; }
+  button.secondary { background: #444; color: #e0e0e0; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .progress { background: #333; border-radius: 4px; height: 6px; margin: 10px 0 4px; overflow: hidden; display:none }
+  .progress-bar { background: #c8f135; height: 100%; width: 0%; transition: width .3s; }
+  .progress.active { display: block; }
+  .progress.done .progress-bar { background: #4caf50; width: 100% !important; }
+  .status { font-size: 12px; color: #aaa; margin: 6px 0; min-height: 18px; }
+  .log { background: #111; border-radius: 8px; padding: 10px; font-size: 11px; color: #aaa; height: 220px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; word-break: break-all; margin-top: 8px; display:none }
+  .log.visible { display: block; }
+  .badge { display:inline-block; background:#333; border-radius:4px; padding:2px 6px; font-size:11px; color:#c8f135; }
+</style>
+</head>
+<body>
+<h1>🏷 タグ正規化ツール</h1>
+<p class="sub">処理はPC側で実行・スマホでモニター</p>
+
+<div class="card">
+  <div class="card-title">① プレビュー</div>
+  <div class="note">正規化が必要なタグをPC側で検索します（変更なし）</div>
+  <button onclick="startRun(true)" id="btn-preview">プレビュー実行</button>
+</div>
+
+<div class="card">
+  <div class="card-title">② 一括適用</div>
+  <div class="note">⚠️ プレビュー確認後に実行してください</div>
+  <button class="danger" onclick="startRun(false)" id="btn-apply">一括適用</button>
+</div>
+
+<div class="card" id="monitor-card" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+    <div class="card-title" style="margin:0">進捗モニター</div>
+    <span class="badge" id="mode-badge">-</span>
+  </div>
+  <div class="status" id="status-text">待機中...</div>
+  <div class="progress" id="progress"><div class="progress-bar" id="progress-bar"></div></div>
+  <div class="log visible" id="log"></div>
+  <div style="display:flex;gap:8px;margin-top:8px">
+    <button class="secondary" onclick="stopPolling()" style="font-size:12px;padding:8px;flex:1">モニター停止</button>
+    <button class="danger" onclick="stopNormalizer()" style="font-size:12px;padding:8px;flex:1">処理を中止</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">③ 一括タグ付け</div>
+  <div class="note">指定タグを持つ画像に、新たなタグを追加します</div>
+  <div style="margin-bottom:8px;position:relative">
+    <label style="font-size:11px;color:#888;display:block;margin-bottom:4px">検索タグ（このタグを持つ画像が対象）</label>
+    <input type="text" id="search-tag" placeholder="例: fate/stay night" autocomplete="off"
+      style="width:100%;background:#333;border:1px solid #444;border-radius:6px;color:#e0e0e0;font-size:13px;padding:8px 10px;outline:none"
+      oninput="onSearchTagInput(this.value)" onblur="setTimeout(()=>document.getElementById('search-tag-ac').style.display='none',200)">
+    <div id="search-tag-ac" style="display:none;position:absolute;top:100%;left:0;right:0;background:#2a2a2a;border:1px solid #555;border-radius:8px;z-index:100;max-height:180px;overflow-y:auto;margin-top:2px"></div>
+  </div>
+  <div style="margin-bottom:8px">
+    <label style="font-size:11px;color:#888;display:block;margin-bottom:4px">追加するタグ（カンマ区切りで複数可）</label>
+    <input type="text" id="add-tag" placeholder="例: nsfw, best quality" style="width:100%;background:#333;border:1px solid #444;border-radius:6px;color:#e0e0e0;font-size:13px;padding:8px 10px;outline:none">
+  </div>
+  <button onclick="startBulkTag(true)" style="margin-bottom:6px">プレビュー確認</button>
+  <button class="danger" onclick="startBulkTag(false)">一括タグ付け実行</button>
+</div>
+
+<div class="card">
+  <div class="card-title">⚙️ プロキシ管理</div>
+  <div class="note">プロキシサーバー自体を再起動します（接続が一時切断されます）</div>
+  <button class="secondary" onclick="restartProxy()" style="margin-top:8px">プロキシを再起動</button>
+</div>
+
+<script>
+let pollTimer = null;
+let logBuffer = '';
+
+function addLog(text) {
+  const el = document.getElementById('log');
+  logBuffer += text + '\n';
+  el.textContent = logBuffer;
+  el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(text) {
+  document.getElementById('status-text').textContent = text;
+}
+
+function setBtns(disabled) {
+  document.getElementById('btn-preview').disabled = disabled;
+  document.getElementById('btn-apply').disabled = disabled;
+}
+
+async function startRun(dryRun) {
+  if (!dryRun && !confirm('Eagleのタグを実際に変更します。よろしいですか？')) return;
+
+  logBuffer = '';
+  document.getElementById('log').textContent = '';
+  document.getElementById('monitor-card').style.display = 'block';
+  document.getElementById('mode-badge').textContent = dryRun ? 'プレビュー' : '適用';
+  document.getElementById('progress').className = 'progress active';
+  document.getElementById('progress-bar').style.width = '5%';
+  setStatus('PC側で処理開始中...');
+  setBtns(true);
+
+  try {
+    const res = await fetch('/run-normalizer?dry=' + (dryRun ? '1' : '0'));
+    const data = await res.json();
+    if (data.status === 'already_running') {
+      setStatus('既に実行中です');
+      setBtns(false);
+      return;
+    }
+    addLog('処理開始: ' + (dryRun ? 'プレビューモード' : '適用モード'));
+    startPolling();
+  } catch(e) {
+    setStatus('エラー: ' + e.message);
+    setBtns(false);
+  }
+}
+
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(pollLog, 1000);
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+let progress = 5;
+async function stopNormalizer() {
+  if (!confirm('処理を中止しますか？')) return;
+  try {
+    await fetch('/normalizer-stop');
+    addLog('⏹ 中止リクエストを送信しました');
+    setStatus('中止中...');
+  } catch(e) { addLog('エラー: ' + e.message); }
+}
+
+async function restartProxy() {
+  if (!confirm('プロキシを再起動しますか？\n接続が一時切断されます。')) return;
+  try {
+    await fetch('/proxy-restart');
+    setStatus('プロキシ再起動中...');
+    document.getElementById('monitor-card').style.display = 'block';
+    document.getElementById('log').textContent = 'プロキシ再起動中...\n5秒後に自動的にリロードします';
+    document.getElementById('log').className = 'log visible';
+    setTimeout(() => location.reload(), 5000);
+  } catch(e) {
+    // 再起動で接続が切れるので正常
+    setTimeout(() => location.reload(), 5000);
+  }
+}
+
+// タグ一覧をロード
+let cachedTags = [];
+async function loadTagList() {
+  if (cachedTags.length) return;
+  try {
+    const res = await fetch('/api/tag/list');
+    const data = await res.json();
+    cachedTags = (data.data || []).map(t => typeof t === 'string' ? t : t.name).filter(Boolean).sort();
+  } catch(e) {}
+}
+loadTagList();
+
+function onSearchTagInput(q) {
+  const ac = document.getElementById('search-tag-ac');
+  if (!q) { ac.style.display = 'none'; return; }
+  const ql = q.toLowerCase();
+  const matches = cachedTags.filter(t => t.toLowerCase().includes(ql)).slice(0, 10);
+  if (!matches.length) { ac.style.display = 'none'; return; }
+  // 前方一致優先
+  matches.sort((a, b) => {
+    const al = a.toLowerCase(), bl = b.toLowerCase();
+    return (al.startsWith(ql) ? 0 : 1) - (bl.startsWith(ql) ? 0 : 1) || al.localeCompare(bl);
+  });
+  ac.innerHTML = matches.map(t => {
+    const hi = t.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'), '<em style="color:#c8f135;font-style:normal">$1</em>');
+    return '<div style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #333" onclick="selectSearchTag(\'' + t.replace(/'/g, "\\'") + '\')">' + hi + '</div>';
+  }).join('');
+  ac.style.display = 'block';
+}
+
+function selectSearchTag(tag) {
+  document.getElementById('search-tag').value = tag;
+  document.getElementById('search-tag-ac').style.display = 'none';
+}
+
+async function startBulkTag(dryRun) {
+  const searchTag = document.getElementById('search-tag').value.trim();
+  const addTags = document.getElementById('add-tag').value.trim();
+  if (!searchTag) { alert('検索タグを入力してください'); return; }
+  if (!addTags) { alert('追加するタグを入力してください'); return; }
+  if (!dryRun && !confirm('「' + searchTag + '」を持つ画像に「' + addTags + '」を追加します。よろしいですか？')) return;
+
+  logBuffer = '';
+  document.getElementById('log').textContent = '';
+  document.getElementById('monitor-card').style.display = 'block';
+  document.getElementById('mode-badge').textContent = dryRun ? 'タグ付けプレビュー' : 'タグ付け適用';
+  document.getElementById('progress').className = 'progress active';
+  document.getElementById('progress-bar').style.width = '5%';
+  setStatus('PC側で処理開始中...');
+  setBtns(true);
+
+  try {
+    const params = new URLSearchParams({
+      dry: dryRun ? '1' : '0',
+      search_tag: searchTag,
+      add_tags: addTags
+    });
+    const res = await fetch('/run-bulk-tag?' + params.toString());
+    const data = await res.json();
+    if (data.status === 'already_running') {
+      setStatus('既に実行中です'); setBtns(false); return;
+    }
+    addLog('タグ付け処理開始: 検索=' + searchTag + ' / 追加=' + addTags);
+    startPolling();
+  } catch(e) {
+    setStatus('エラー: ' + e.message); setBtns(false);
+  }
+}
+
+async function pollLog() {
+  try {
+    const res = await fetch('/normalizer-log');
+    const data = await res.json();
+
+    // ログ追記
+    if (data.lines && data.lines.length) {
+      data.lines.forEach(line => addLog(line));
+      // プログレスバーをアニメーション
+      if (data.running) {
+        progress = Math.min(progress + 2, 90);
+        document.getElementById('progress-bar').style.width = progress + '%';
+      }
+    }
+
+    if (data.done) {
+      stopPolling();
+      document.getElementById('progress').className = 'progress active done';
+      setBtns(false);
+      document.getElementById('btn-preview').disabled = false;
+      document.getElementById('btn-apply').disabled = false;
+      const r = data.result || {};
+      if (r.status === 'done') {
+        setStatus('✅ 完了: ' + r.updated + '件更新 / エラー: ' + r.errors + '件');
+        addLog('\n✅ 完了しました');
+      } else if (r.status === 'preview') {
+        setStatus('✅ プレビュー完了: ' + r.count + '件に変更あり');
+        addLog('\n✅ プレビュー完了');
+      } else if (r.status === 'ok') {
+        setStatus('✅ 正規化が必要なタグはありませんでした');
+      } else {
+        setStatus('完了');
+      }
+      progress = 5; // リセット
+    } else if (data.running) {
+      setStatus('PC側で処理中...');
+    }
+  } catch(e) {
+    // 一時的なエラーは無視
+  }
+}
+</script>
+</body>
+</html>

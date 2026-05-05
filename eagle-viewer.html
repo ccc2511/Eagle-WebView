@@ -1,0 +1,1775 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Eagle Viewer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Noto+Sans+JP:wght@300;400;500&display=swap');
+  :root {
+    --bg:#0e0e0e;--surface:#181818;--surface2:#222;--border:#2e2e2e;
+    --accent:#c8ff00;--accent2:#ff6b35;--text:#f0f0f0;--muted:#888;--radius:10px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;min-height:100dvh;font-size:14px}
+
+  /* SETUP */
+  #setup{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;padding:24px}
+  .setup-logo{font-family:'Syne',sans-serif;font-size:48px;font-weight:800;color:var(--accent);letter-spacing:-2px;margin-bottom:4px}
+  .setup-sub{font-size:11px;letter-spacing:4px;color:var(--muted);text-transform:uppercase;margin-bottom:40px}
+  .setup-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px 24px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:16px}
+  .connect-btn{background:var(--accent);color:#000;border:none;border-radius:var(--radius);font-family:'Syne',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;padding:14px;cursor:pointer;width:100%}
+  .connect-btn:active{opacity:.8}
+  .hint{font-size:11px;color:var(--muted);line-height:1.7;border-top:1px solid var(--border);padding-top:16px}
+  .hint code{background:var(--surface2);color:var(--accent);padding:1px 5px;border-radius:4px;font-size:11px}
+
+  /* APP */
+  #app{display:none;flex-direction:column;min-height:100dvh}
+  .app-header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100}
+  .app-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--accent);letter-spacing:-1px;flex-shrink:0;width:20px;overflow:hidden}
+  .search-wrap{flex:1;position:relative}
+  .search-wrap input{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;padding:9px 32px 9px 34px;outline:none;width:100%;transition:border-color .2s}
+  .search-wrap input:focus{border-color:var(--accent)}
+  .search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px;pointer-events:none}
+  .search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 4px;display:none}
+  .search-clear.visible{display:block}
+
+  /* AUTOCOMPLETE */
+  .ac-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;z-index:500;box-shadow:0 8px 24px rgba(0,0,0,.6);display:none;max-height:300px;overflow-y:auto}
+  .ac-dropdown.open{display:block}
+  .and-chip{background:var(--accent2);border-radius:12px;color:#fff;font-size:11px;padding:3px 8px 3px 10px;display:flex;align-items:center;gap:4px;cursor:default}
+  .and-chip.exclude{background:#e53935}
+  .sf-chip{background:#1565c0;border-radius:12px;color:#fff;font-size:11px;padding:3px 10px;cursor:pointer;display:inline-block}
+  .sf-chip.active{background:#0288d1}
+  .and-chip-x{cursor:pointer;font-size:13px;line-height:1}
+  .ac-item{padding:10px 16px;cursor:pointer;font-size:13px;border-top:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ac-item:first-child{border-top:none}
+  .ac-item:active{background:var(--surface2)}
+  .ac-item em{font-style:normal;color:var(--accent)}
+
+  .settings-btn{background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);cursor:pointer;font-size:16px;padding:7px 9px;flex-shrink:0}
+
+  .filter-bar{display:flex;gap:8px;padding:10px 16px;overflow-x:auto;scrollbar-width:none;background:var(--bg);border-bottom:1px solid var(--border);align-items:center}
+  .filter-bar::-webkit-scrollbar{display:none}
+  .filter-chip{background:var(--surface);border:1px solid var(--border);border-radius:20px;color:var(--muted);cursor:pointer;font-size:12px;padding:5px 12px;white-space:nowrap;transition:all .15s;flex-shrink:0}
+  .filter-chip.active{background:var(--accent);border-color:var(--accent);color:#000;font-weight:600}
+  .sort-select{background:var(--surface);border:1px solid var(--border);border-radius:20px;color:var(--muted);font-size:12px;padding:5px 10px;outline:none;cursor:pointer;flex-shrink:0}
+  #rating-select.inactive{color:#555;opacity:.5}
+  #rating-select.active{color:#ffc83d;border-color:#ffc83d;font-weight:700}
+
+
+  .grid-wrap{flex:1;padding:12px;overflow-y:auto}
+  .media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+  .media-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:border-color .15s,transform .1s;position:relative;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+  .media-card:active{transform:scale(.97)}
+  .media-card.selected{border-color:var(--accent)}
+  .media-thumb{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:var(--surface2);-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+  .media-name{font-size:10px;color:var(--muted);padding:5px 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .media-ext{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.7);color:var(--accent);font-size:9px;font-family:'Syne',sans-serif;font-weight:700;padding:2px 5px;border-radius:4px}
+  .video-badge{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:24px;pointer-events:none;opacity:.8}
+
+  .bottom-bar{background:var(--surface);border-top:1px solid var(--border);padding:12px 16px;display:none;align-items:center;gap:10px;position:sticky;bottom:0}
+  .bottom-bar.visible{display:flex}
+  .sel-count{color:var(--muted);font-size:13px;flex:1}
+  .dl-btn{background:var(--accent);color:#000;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;padding:10px 18px;cursor:pointer}
+  .clear-btn{background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:13px;padding:10px 14px;cursor:pointer}
+
+  .status-msg{text-align:center;color:var(--muted);padding:60px 20px;font-size:13px;line-height:1.8}
+  .loader{display:inline-block;width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:12px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  #lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:200;flex-direction:column}
+  #lightbox.open{display:flex}
+  .lb-header{display:flex;align-items:center;padding:12px 16px;gap:10px;border-bottom:1px solid var(--border);background:var(--surface)}
+  .lb-title{flex:1;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+  .lb-title.expanded{white-space:normal;word-break:break-all;overflow:visible;text-overflow:unset}
+  .lb-close,.lb-dl{background:none;border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:18px;padding:6px 10px;cursor:pointer}
+  .lb-dl{font-size:13px;color:var(--accent);border-color:var(--accent);font-family:'Syne',sans-serif;font-weight:700}
+  .lb-body{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:16px;position:relative;touch-action:pan-y}
+  .lb-body img,.lb-body video{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;display:block}
+  /* 拡大モード */
+  #lightbox.expanded .lb-body{position:fixed;inset:0;padding:0;overflow:hidden;touch-action:none;display:flex;align-items:center;justify-content:center;background:#000;z-index:201}
+  .pz-overlay{position:absolute;inset:0;z-index:10;touch-action:none}
+  #lightbox.expanded .lb-body img{max-width:none;max-height:none;width:100%;border-radius:0;object-fit:contain;transform-origin:center center;will-change:transform;transition:none}
+  #lightbox.expanded .lb-meta{display:none}
+  #lightbox.expanded .lb-tags{display:none}
+  #lightbox.expanded .lb-tags-toggle{display:none}
+  #lightbox.expanded .lb-tag-editor{display:none}
+  #lightbox.expanded .lb-header{opacity:0.3;transition:opacity .2s}
+  #lightbox.expanded .lb-header:active{opacity:1}
+  #lightbox.expanded .lb-nav-btn{display:none}
+  .lb-tags{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px 16px}
+  .lb-tag{background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:11px;padding:3px 9px;cursor:pointer}
+  .lb-tag:active{background:var(--accent2);color:#fff}
+  /* 詳細メタ情報（日付・星評価） */
+  .lb-meta{display:flex;align-items:center;gap:12px;padding:8px 16px;font-size:11px;color:var(--muted);background:var(--surface);border-top:1px solid var(--border);flex-wrap:wrap}
+  .lb-meta-dates{display:flex;flex-direction:column;gap:2px}
+  .lb-stars{display:flex;gap:2px;cursor:pointer;user-select:none}
+  .lb-star{font-size:20px;color:#444;transition:color .15s;line-height:1}
+  .lb-star.active{color:#ffc83d}
+  .lb-star:hover{color:#ffdc7a}
+  /* スワイプナビ・矢印ボタン */
+  .lb-nav-btn{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.5);border:none;color:#fff;font-size:32px;width:44px;height:60px;border-radius:6px;cursor:pointer;z-index:10;opacity:.6;transition:opacity .15s}
+  .lb-nav-btn:hover{opacity:1}
+  .lb-nav-btn:disabled{opacity:.15;cursor:default}
+  .lb-nav-prev{left:4px}
+  .lb-nav-next{right:4px}
+  .lb-nav-info{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#fff;font-size:11px;padding:3px 10px;border-radius:12px;z-index:10}
+
+  #toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#333;color:#fff;border-radius:20px;font-size:12px;padding:8px 18px;display:none;z-index:999;max-width:90vw;text-align:center}
+
+  .pager{display:flex;justify-content:center;gap:8px;padding:16px}
+  .page-btn{background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 16px;cursor:pointer}
+  .page-btn:disabled{opacity:.3;cursor:default}
+
+  /* AI SEARCH */
+  .ai-search-btn{background:linear-gradient(135deg,#6a0dad,#1565c0);color:#fff;border:none;border-radius:8px;font-size:12px;padding:6px 12px;cursor:pointer;width:100%;margin-top:6px;font-family:'Syne',sans-serif;font-weight:700}
+  .ai-search-btn:disabled{opacity:.4;cursor:default}
+  .ai-result-badge{position:absolute;top:4px;left:4px;background:rgba(106,13,173,.85);color:#fff;font-size:10px;padding:2px 5px;border-radius:4px;font-weight:700}
+
+  /* TAG EDITOR */
+  .lb-tags{max-height:120px;overflow-y:auto;transition:max-height .3s}
+  .lb-tags.expanded{max-height:600px}
+  .lb-tags-toggle{text-align:center;padding:4px;color:var(--accent);font-size:11px;cursor:pointer;border-top:1px solid var(--border)}
+  .tag-ac-dropdown{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;max-height:180px;overflow-y:auto;z-index:10;display:none;margin-top:4px}
+  .tag-ac-dropdown.open{display:block}
+  .tag-ac-item{padding:8px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border)}
+  .tag-ac-item:last-child{border-bottom:none}
+  .tag-ac-item:active{background:var(--surface2)}
+  .tag-ac-item em{font-style:normal;color:var(--accent)}
+  .tag-editor{padding:8px 16px 12px;border-top:1px solid var(--border);background:var(--surface)}
+  .tag-editor-row{display:flex;gap:6px;margin-bottom:8px}
+  .tag-editor-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 12px;outline:none}
+  .tag-editor-input:focus{border-color:var(--accent)}
+  .tag-editor-btn{background:var(--accent);color:#000;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:8px 12px;cursor:pointer;white-space:nowrap}
+  .tag-editor-btn.del{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  .editable-tag{background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:11px;padding:3px 6px 3px 9px;display:inline-flex;align-items:center;gap:3px;cursor:default}
+  .editable-tag-x{cursor:pointer;color:#e53935;font-size:13px;line-height:1;padding:0 2px}
+  .page-info{color:var(--muted);font-size:13px;display:flex;align-items:center}
+</style>
+</head>
+<body>
+
+<div id="setup" style="display:none">
+  <div class="setup-logo">EAGLE</div>
+  <div class="setup-sub">Library Viewer</div>
+  <div class="setup-card">
+    <button class="connect-btn" onclick="connect()">ライブラリを開く</button>
+    <div class="hint">
+      <b>確認事項：</b><br>
+      1. PCとAndroidが同じWi-Fiに接続中<br>
+      2. Eagleアプリが起動中<br>
+      3. <code>eagle_proxy.py</code> を実行中
+    </div>
+  </div>
+</div>
+
+<div id="app" style="display:flex;flex-direction:column;min-height:100dvh">
+  <div class="app-header">
+    <div class="app-logo">EAGLE</div>
+    <form class="search-wrap" onsubmit="onSearchSubmit(event)">
+      <span class="search-icon">🔍</span>
+      <input type="search" id="search-input" placeholder="名前 or タグで検索…"
+        oninput="onSearchInput()" onfocus="showAC()" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
+      <button type="button" class="search-clear" id="search-clear" onclick="clearSearch()">✕</button>
+      <div class="ac-dropdown" id="ac-dropdown"></div>
+    </form>
+    <span id="result-count" style="font-size:11px;color:var(--muted);flex-shrink:0;white-space:nowrap;margin-left:auto"></span>
+    <input type="file" id="ai-image-input" accept="image/*" style="display:none" onchange="searchByUploadedImage(this)">
+  </div>
+
+  <div id="and-chips" style="display:none;flex-wrap:wrap;gap:6px;padding:6px 16px 0;background:var(--bg)"></div>
+  <!-- スマートフォルダパネル -->
+  <div id="sf-panel" style="display:none;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border)">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">フォルダで絞り込み</div>
+    <div id="sf-list" style="display:flex;flex-wrap:wrap;gap:6px;max-height:120px;overflow-y:auto"></div>
+  </div>
+
+  <div class="filter-bar">
+    <select id="rating-select" class="sort-select" onchange="onRatingFilterChange()" title="星評価で絞り込み">
+      <option value="-1">☆</option>
+      <option value="0">★なし</option>
+      <option value="1">★1</option>
+      <option value="2">★2</option>
+      <option value="3">★3</option>
+      <option value="4">★4</option>
+      <option value="5">★5</option>
+    </select>
+    <select id="sort-select" class="sort-select" onchange="onSortChange()">
+      <option value="-CREATEDATE">作成日 ↓</option>
+      <option value="CREATEDATE">作成日 ↑</option>
+      <option value="-MODIFICATIONTIME">更新日 ↓</option>
+      <option value="MODIFICATIONTIME">更新日 ↑</option>
+      <option value="NAME">名前 ↑</option>
+      <option value="-NAME">名前 ↓</option>
+    </select>
+    <button class="settings-btn" onclick="triggerImageSearch()" title="画像で類似検索" style="margin-left:auto">🖼</button>
+    <button class="settings-btn" onclick="toggleSmartFolderPanel()" title="フォルダで絞り込み" id="sf-btn">📁</button>
+    <button class="settings-btn" onclick="restartEagleAndReload()" title="Eagle再起動">⟳</button>
+  </div>
+
+  <div class="grid-wrap" id="grid-wrap">
+    <div id="grid-status" class="status-msg" style="display:none"></div>
+    <div class="media-grid" id="media-grid"></div>
+    <div class="pager" id="pager" style="display:none">
+      <button class="page-btn" id="prev-btn" onclick="changePage(-1)" disabled>← 前へ</button>
+      <span class="page-info" id="page-info"></span>
+      <button class="page-btn" id="next-btn" onclick="changePage(1)">次へ →</button>
+    </div>
+  </div>
+
+  <div class="bottom-bar" id="bottom-bar">
+    <span class="sel-count" id="sel-count">0 件選択</span>
+    <button class="clear-btn" onclick="clearSelection()">解除</button>
+    <button class="tag-editor-btn" onclick="openBulkModal()" style="padding:10px 14px;font-size:12px">🏷 タグ追加</button>
+    <button class="dl-btn" onclick="downloadSelected()">⬇ 開く</button>
+  </div>
+</div>
+
+<div id="lightbox">
+  <div class="lb-header">
+    <span class="lb-title" id="lb-title" onclick="toggleLbTitle()" title="タップで全文表示"></span>
+    <button class="lb-close expand-btn" onclick="toggleLbExpand()" title="拡大/縮小">⤢</button>
+    <button class="ai-search-btn" id="ai-sim-btn" onclick="searchSimilar()" style="width:auto;margin:0;padding:4px 10px;font-size:11px">🔍 類似画像</button>
+    <button class="lb-dl" id="lb-dl-btn" onclick="downloadItem(currentItem)">⬇ ダウンロード</button>
+    <button class="lb-close" onclick="closeLightbox()">✕</button>
+  </div>
+  <div class="lb-body" id="lb-body">
+    <div class="lb-nav-info" id="lb-nav-info" style="display:none"></div>
+    <button class="lb-nav-btn lb-nav-prev" id="lb-nav-prev" onclick="navigateLightbox(-1)">‹</button>
+    <button class="lb-nav-btn lb-nav-next" id="lb-nav-next" onclick="navigateLightbox(1)">›</button>
+  </div>
+  <div class="lb-meta" id="lb-meta">
+    <div class="lb-stars" id="lb-stars" title="評価">
+      <span class="lb-star" data-star="1" onclick="setItemStar(1)">★</span>
+      <span class="lb-star" data-star="2" onclick="setItemStar(2)">★</span>
+      <span class="lb-star" data-star="3" onclick="setItemStar(3)">★</span>
+      <span class="lb-star" data-star="4" onclick="setItemStar(4)">★</span>
+      <span class="lb-star" data-star="5" onclick="setItemStar(5)">★</span>
+      <span class="lb-star" style="font-size:12px;margin-left:4px" onclick="setItemStar(0)" title="評価を解除">✕</span>
+    </div>
+    <div class="lb-meta-dates" id="lb-meta-dates"></div>
+  </div>
+  <div class="lb-tags" id="lb-tags"></div>
+  <div class="lb-tags-toggle" id="lb-tags-toggle" onclick="toggleLbTags()"></div>
+  <div class="tag-editor" id="lb-tag-editor">
+    <div class="tag-editor-row" style="position:relative">
+      <div id="lb-tag-ac" class="tag-ac-dropdown" style="top:auto;bottom:100%;margin-top:0;margin-bottom:4px"></div>
+      <input type="text" class="tag-editor-input" id="lb-tag-input" placeholder="タグを追加…" autocomplete="off" spellcheck="false" oninput="onTagInputAC(this.value)">
+      <button class="tag-editor-btn" onclick="addTagToItem()">追加</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- BULK TAG BOTTOM SHEET -->
+<div id="bulk-tag-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300" onclick="closeBulkModal()"></div>
+<div id="bulk-tag-sheet" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-radius:16px 16px 0 0;padding:20px 16px;z-index:301;transform:translateY(100%);transition:transform .3s">
+  <div style="width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px"></div>
+  <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;margin-bottom:4px">タグを追加</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:12px" id="bulk-count"></div>
+  <div id="bulk-tag-ac" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;display:none;max-height:160px;overflow-y:auto"></div>
+  <div style="display:flex;gap:8px;margin-bottom:8px">
+    <input type="text" class="tag-editor-input" id="bulk-tag-input" placeholder="追加するタグ名…" autocomplete="off" spellcheck="false" oninput="onBulkTagInputAC(this.value)">
+    <button class="tag-editor-btn" onclick="bulkAddTag()">追加</button>
+  </div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:6px">共通タグを削除:</div>
+  <div id="bulk-common-tags" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;max-height:120px;overflow-y:auto"></div>
+  <button class="tag-editor-btn del" style="width:100%" onclick="closeBulkModal()">キャンセル</button>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let BASE_URL = '';
+let allTags = [];
+
+// タグをバックグラウンドで取得（詳細画面でのタグ追加サジェスト用）
+async function fetchAllTagsSilently() {
+  try {
+    const data = await apiGet('/api/tag/list');
+    const tags = (data.data || []).map(t => typeof t === 'string' ? t : t.name).filter(Boolean);
+    allTags = [...new Set(tags)].sort();
+  } catch(e) { console.warn('tag/list failed', e); }
+}
+
+async function restartEagleAndReload() {
+  showToast('Eagle保存待機中… (15秒)');
+  await new Promise(r => setTimeout(r, 15000));
+  showToast('Eagle再起動中…');
+  try { await fetch('/restart-eagle'); } catch(e) {}
+  await new Promise(r => setTimeout(r, 5000));
+  for (let i = 0; i < 15; i++) {
+    try { await apiGet('/api/application/info'); break; }
+    catch(e) { await new Promise(r => setTimeout(r, 1000)); }
+  }
+  await fetchAllTagsSilently();
+  clearReloadMark();
+  showToast('完了: タグ ' + allTags.length + '件');
+}
+let andTags = []; // AND検索用タグチップ
+let currentFilter = 'all';
+let currentSmartFolder = null; // 選択中のスマートフォルダID
+let currentFolder = null; // 選択中の通常フォルダID
+let currentSort = '-CREATEDATE';
+let currentKeyword = '';
+let selectedIds = new Set();
+let currentItem = null;
+let currentPage = 0;
+const PAGE_SIZE = 50;
+let debounceTimer = null;
+let acTimer = null;
+let itemsCache = {};
+
+let currentViewItems = []; // 現在表示中のアイテム配列（ライトボックスのスワイプ用）
+let ratingFilter = -1; // -1=フィルタなし, 0〜5=その星数ちょうど
+
+
+// SMART FOLDER
+let smartFolders = [];
+async function loadSmartFolders() {
+  try {
+    // V2 API でフォルダ・スマートフォルダを取得
+    const [folderRes, sfRes] = await Promise.all([
+      apiGet('/api/v2/folder/get', { limit: 1000 }),
+      apiGet('/api/v2/smartFolder/get')
+    ]);
+
+    function flatten(folders, depth=0, type='folder') {
+      const result = [];
+      for (const f of folders) {
+        result.push({ id: f.id, name: ('　'.repeat(depth)) + f.name, type });
+        if (f.children && f.children.length) {
+          result.push(...flatten(f.children, depth + 1, type));
+        }
+      }
+      return result;
+    }
+
+    const folders = flatten(folderRes.data?.data || folderRes.data || [], 0, 'folder');
+    const sfData = sfRes.data?.data || sfRes.data || [];
+    const sfs = flatten(Array.isArray(sfData) ? sfData : [], 0, 'smart');
+    smartFolders = [...folders, ...(sfs.length ? [{id:'__sep__', name:'── スマートフォルダ ──', type:'sep'}] : []), ...sfs];
+    renderSmartFolderList();
+  } catch(e) { console.warn('folders', e); showToast('フォルダ取得エラー: ' + e.message); }
+}
+
+function renderSmartFolderList() {
+  const el = document.getElementById('sf-list');
+  if (!smartFolders.length) { el.innerHTML = '<span style="color:var(--muted);font-size:11px">スマートフォルダなし</span>'; return; }
+  el.innerHTML = smartFolders.map(f => {
+    if (f.type === 'sep') return '<div style="width:100%;font-size:10px;color:var(--muted);padding:4px 0">' + escHtml(f.name) + '</div>';
+    const active = currentSmartFolder === f.id;
+    const color = f.type === 'smart' ? (active ? '#0288d1' : '#1565c0') : (active ? '#0288d1' : '#1565c0');
+    return '<span class="sf-chip' + (active ? ' active' : '') + '" onclick="selectSmartFolder(\'' + escHtml(f.id) + '\',\'' + f.type + '\')" style="background:' + color + '">' + escHtml(f.name) + '</span>';
+  }).join('');
+}
+
+function toggleSmartFolderPanel() {
+  const panel = document.getElementById('sf-panel');
+  if (panel.style.display === 'none') {
+    panel.style.display = 'block';
+    if (!smartFolders.length) loadSmartFolders();
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+let currentFolderType = 'folder'; // 'folder' or 'smart'
+function selectSmartFolder(id, type='folder') {
+  if (currentSmartFolder === id) {
+    currentSmartFolder = null;
+    currentFolderType = 'folder';
+    document.getElementById('result-count').textContent = '';
+  } else {
+    currentSmartFolder = id;
+    currentFolderType = type || 'folder';
+  }
+  renderSmartFolderList();
+  loadItems(0);
+}
+
+// SETUP - 自動接続
+function connect() {
+  BASE_URL = '';
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  updateRatingSelectStyle();
+  loadItems(0);
+  // タグはバックグラウンドで取得（詳細画面でのタグ追加サジェスト用、表示には影響しない）
+  setTimeout(() => fetchAllTagsSilently(), 3000);
+}
+function markReloadNeeded() {
+  const btn = document.querySelector('.settings-btn');
+  if (btn) btn.textContent = '⟳🔴';
+}
+
+function clearReloadMark() {
+  const btn = document.querySelector('.settings-btn');
+  if (btn) btn.textContent = '⟳';
+}
+
+
+function showSetup() {
+  document.getElementById('setup').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+// ページ読み込み時に自動接続
+window.addEventListener('DOMContentLoaded', () => { connect(); });
+
+// API V1
+async function apiGet(path, params) {
+  let url = BASE_URL + path;
+  if (params && Object.keys(params).length) url += '?' + new URLSearchParams(params).toString();
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+async function apiV2Post(path, body = {}) {
+  const res = await fetch(BASE_URL + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (data.status === 'success' && data.data !== undefined) {
+    if (data.data && typeof data.data === 'object' && Array.isArray(data.data.data)) {
+      return { status: 'success', data: data.data.data, total: data.data.total };
+    }
+    return { status: 'success', data: data.data };
+  }
+  return { status: 'error', data: [] };
+}
+function thumbUrl(item) { return BASE_URL + '/api/item/thumbnail?id=' + item.id; }
+
+// TAGS
+
+
+// AUTOCOMPLETE
+function onSearchInput() {
+  const q = document.getElementById('search-input').value;
+  document.getElementById('search-clear').classList.toggle('visible', q.length > 0);
+  clearTimeout(debounceTimer);
+  clearTimeout(acTimer);
+  if (q.length === 0) {
+    closeAC();
+    currentKeyword = '';
+    loadItems(0);
+    return;
+  }
+  const qForAC = q.startsWith('-') ? q.slice(1) : q;
+  acTimer = setTimeout(() => buildAC(qForAC), 150);
+}
+
+// form submit = Enterキー（Android Chromeで最も確実）
+function onSearchSubmit(event) {
+  event.preventDefault();
+  _doSearchEnter();
+}
+
+// 検索入力でのEnter処理（keydown補助: 一部キーボードアプリ向け）
+let _searchEnterFired = false;
+function onSearchKeyDown(event) {
+  if (event.isComposing || event.keyCode === 229) return;
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    _doSearchEnter();
+  }
+}
+function _doSearchEnter() {
+  const inp = document.getElementById('search-input');
+  const q = inp.value.trim();
+  _searchEnterFired = true;   // selectACの誤発火ガード（closeAC前に立てる）
+  closeAC();
+  clearTimeout(debounceTimer);
+  clearTimeout(acTimer);
+  if (!q) return;
+  currentKeyword = q;
+  loadItems(0);
+  // 少し後にフラグをリセット（通常のタップ選択が引き続き使えるように）
+  setTimeout(() => { _searchEnterFired = false; }, 300);
+}
+
+function buildAC(q) {
+  const ql = q.toLowerCase();
+  const seen = new Set();
+  const all = [];
+
+  // allTags から前方一致優先でフィルタ・ソート（通信なし）
+  const tagMatches = allTags.filter(t => t.toLowerCase().includes(ql));
+  tagMatches.sort((a, b) => {
+    const al = a.toLowerCase(), bl = b.toLowerCase();
+    return (al.startsWith(ql) ? 0 : 1) - (bl.startsWith(ql) ? 0 : 1) || al.localeCompare(bl);
+  });
+  for (const t of tagMatches) {
+    const key = t.toLowerCase();
+    if (!seen.has(key)) { seen.add(key); all.push(t); }
+    if (all.length >= 10) break;
+  }
+  renderAC(all, q);
+}
+
+function renderAC(all, q) {
+  const ac = document.getElementById('ac-dropdown');
+  if (!all.length) { closeAC(); return; }
+  ac.innerHTML = all.slice(0, 10).map(t => {
+    const hi = escHtml(t).replace(new RegExp('(' + escRegex(escHtml(q)) + ')', 'gi'), '<em>$1</em>');
+    return '<div class="ac-item" onclick="selectAC(\'' + escHtml(t) + '\')">' + hi + '</div>';
+  }).join('');
+  ac.classList.add('open');
+}
+
+function selectAC(value) {
+  // Enter検索の直後はチップ化をスキップ（Enterでサジェストのonclickが誤発火する対策）
+  if (_searchEnterFired) { _searchEnterFired = false; return; }
+  const input = document.getElementById('search-input');
+  const cur = input.value.trim();
+  const isExclude = cur.startsWith('-');
+  input.value = '';
+  document.getElementById('search-clear').classList.remove('visible');
+  closeAC();
+  currentKeyword = '';
+  addAndChip(isExclude ? '-' + value : value);
+}
+
+function addAndChip(tag) {
+  if (andTags.includes(tag)) return;
+  andTags.push(tag);
+  renderAndChips();
+  loadItems(0);
+}
+
+function removeAndChip(tag) {
+  andTags = andTags.filter(t => t !== tag);
+  renderAndChips();
+  loadItems(0);
+}
+
+function renderAndChips() {
+  const el = document.getElementById('and-chips');
+  if (!andTags.length) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML = andTags.map(t => {
+    const isExclude = t.startsWith('-');
+    const label = isExclude ? t : t;
+    return '<span class="and-chip' + (isExclude ? ' exclude' : '') + '">' +
+      escHtml(label) +
+      '<span class="and-chip-x" onclick="removeAndChip(\'' + escHtml(t) + '\')">×</span></span>';
+  }).join('');
+}
+
+function showAC() {
+  const q = document.getElementById('search-input').value;
+  if (q.length > 0) buildAC(q);
+}
+
+function closeAC() {
+  const ac = document.getElementById('ac-dropdown');
+  ac.classList.remove('open');
+  ac.innerHTML = ''; // DOMを空にしてonclickの誤発火を完全防止
+}
+
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').classList.remove('visible');
+  closeAC();
+  currentKeyword = '';
+  andTags = [];
+  renderAndChips();
+  document.getElementById('result-count').textContent = '';
+  loadItems(0);
+}
+
+// AC外タップで閉じる
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-wrap')) closeAC();
+});
+
+function escRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+// SORT / FILTER
+function onSortChange() {
+  currentSort = document.getElementById('sort-select').value;
+  loadItems(0);
+}
+function onRatingFilterChange() {
+  const v = document.getElementById('rating-select').value;
+  ratingFilter = v === '' ? -1 : parseInt(v, 10);
+  if (isNaN(ratingFilter)) ratingFilter = -1;
+  updateRatingSelectStyle();
+  loadItems(0);
+}
+function updateRatingSelectStyle() {
+  const el = document.getElementById('rating-select');
+  if (!el) return;
+  el.classList.toggle('inactive', ratingFilter < 0);
+  el.classList.toggle('active', ratingFilter >= 0);
+}
+function setFilter(type, el) {
+  currentFilter = type;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  loadItems(0);
+}
+
+// LOAD ITEMS
+let _collectTagsSeq = 0;
+async function loadItems(page) {
+  currentPage = page || 0;
+  try { pushQueryState(); } catch(e) { console.warn('pushQueryState:', e); }
+  _collectTagsSeq++;
+  const status = document.getElementById('grid-status');
+  const grid = document.getElementById('media-grid');
+  status.innerHTML = '<div class="loader"></div><br>読み込み中…';
+  status.style.display = 'block';
+  grid.innerHTML = '';
+  document.getElementById('pager').style.display = 'none';
+
+  try {
+    let items;
+    if (currentKeyword || andTags.length) {
+      // キーワード検索 or チップ検索: item/query で全文検索（ページング対応）
+      // チップはクエリ文字列に変換してAND/除外を表現
+      let query = currentKeyword || '';
+      const incChips = andTags.filter(t => !t.startsWith('-'));
+      const excChips = andTags.filter(t => t.startsWith('-')).map(t => t.slice(1));
+      if (incChips.length) query += (query ? ' ' : '') + incChips.map(t => '"' + t + '"').join(' ');
+      if (excChips.length) query += ' ' + excChips.map(t => '-"' + t + '"').join(' ');
+
+      const qbody = { query: query.trim(), offset: currentPage * PAGE_SIZE, limit: PAGE_SIZE,
+        fields: ['id','name','ext','tags','btime','mtime','star'] };
+      if (ratingFilter >= 0) qbody.rating = ratingFilter;
+      if (currentSmartFolder && currentFolderType === 'smart') qbody.smartFolders = [currentSmartFolder];
+      else if (currentSmartFolder) qbody.folders = [currentSmartFolder];
+      const qRes = await apiV2Post('/api/v2/item/query', qbody);
+      items = qRes.data || [];
+      if (ratingFilter >= 0) items = items.filter(i => (i.star || 0) === ratingFilter);
+      renderItems(items, items.length === PAGE_SIZE, qRes.total);
+    } else {
+      // チップなし・キーワードなし: 通常ページング
+      let data;
+      if (currentSmartFolder && currentFolderType === 'smart') {
+        // スマートフォルダ: /api/v2/smartFolder/getItems
+        const sfB = {
+          smartFolderId: currentSmartFolder, offset: currentPage * PAGE_SIZE,
+          limit: PAGE_SIZE, orderBy: currentSort,
+          fields: ['id','name','ext','tags','btime','mtime','star']
+        };
+        if (ratingFilter >= 0) sfB.rating = ratingFilter;
+        data = await apiV2Post('/api/v2/smartFolder/getItems', sfB);
+      } else {
+        const v2b = { offset: currentPage * PAGE_SIZE, limit: PAGE_SIZE, orderBy: currentSort,
+          fields: ['id','name','ext','tags','btime','mtime','star'] };
+        if (currentFilter === 'image') v2b.ext = 'jpg,jpeg,png,gif,webp,bmp,tiff,svg,avif,heic';
+        if (ratingFilter >= 0) v2b.rating = ratingFilter;
+        if (currentSmartFolder) v2b.folders = [currentSmartFolder];
+        data = await apiV2Post('/api/v2/item/get', v2b);
+      }
+      items = data.data || [];
+      // クライアント側フィルタ: 除外チップ + 評価（APIが効かない保険）
+      if (ratingFilter >= 0) {
+        items = items.filter(i => (i.star || 0) === ratingFilter);
+      }
+      const excOnly = andTags.filter(t => t.startsWith('-'));
+      if (excOnly.length) {
+        const normalizeTag = s => (s || '').replace(/[{}[\]]/g, '').toLowerCase().trim();
+        const excSet = new Set(excOnly.map(t => normalizeTag(t.slice(1))));
+        items = items.filter(item => {
+          const itagSet = new Set((item.tags || []).map(normalizeTag));
+          for (const t of excSet) if (itagSet.has(t)) return false;
+          return true;
+        });
+      }
+      const v2total = data.total;
+      renderItems(items, items.length === PAGE_SIZE, v2total);
+    }
+  } catch(e) {
+    status.innerHTML = '❌ 接続エラー<br><small>' + e.message + '</small><br><br><small>Eagleが起動中か確認してください</small>';
+    status.style.display = 'block';
+  }
+}
+
+function clientSort(items, orderBy) {
+  const asc = !orderBy.startsWith('-');
+  const key = orderBy.replace(/^-/, '');
+  const fieldMap = {
+    'CREATEDATE': 'btime',
+    'MODIFICATIONTIME': 'mtime',
+    'NAME': 'name',
+    'FILESIZE': 'size',
+  };
+  const field = fieldMap[key] || 'btime';
+  return [...items].sort((a, b) => {
+    const av = a[field] || 0;
+    const bv = b[field] || 0;
+    if (typeof av === 'string') return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+    return asc ? av - bv : bv - av;
+  });
+}
+
+function renderItems(items, hasMore, totalCount) {
+  const status = document.getElementById('grid-status');
+  const grid = document.getElementById('media-grid');
+  status.style.display = 'none';
+  // スワイプナビ用: 現在表示中のアイテム配列を保存
+  currentViewItems = items.slice();
+  if (items.length === 0) {
+    status.innerHTML = '該当するアイテムがありません';
+    status.style.display = 'block';
+    // 前のページに戻れるようにページャーは残す
+    if (currentPage > 0) updatePager(false);
+    return;
+  }
+  items.forEach(item => { itemsCache[item.id] = item; grid.appendChild(makeCard(item)); });
+  // 現在の結果からタグを収集（タグパネルで「結果内タグ」として表示）
+
+  // 件数バッジ更新
+  let badgeText = '';
+  if (totalCount !== undefined) {
+    badgeText = String(totalCount);
+  } else if (!hasMore) {
+    badgeText = String(currentPage * PAGE_SIZE + items.length);
+  } else {
+    badgeText = (currentPage * PAGE_SIZE + items.length) + '+';
+  }
+  document.getElementById('result-count').textContent = badgeText;
+
+  // ページャー（常に表示、ページ番号ボタン付き）
+  updatePager(hasMore);
+}
+
+// 現在の検索条件で全件タグを収集
+// item/query はページング対応なので最大5000件分をスキャン
+
+function updatePager(hasMore) {
+  const pager = document.getElementById('pager');
+  pager.style.display = 'flex';
+  document.getElementById('prev-btn').disabled = currentPage === 0;
+  document.getElementById('next-btn').disabled = !hasMore;
+
+  // ページ番号ボタン生成（現在ページ前後2ページ）
+  const pageInfo = document.getElementById('page-info');
+  pageInfo.innerHTML = '';
+  const start = Math.max(0, currentPage - 2);
+  const end = hasMore ? currentPage + 3 : currentPage + 1;
+  for (let p = start; p < end; p++) {
+    const btn = document.createElement('button');
+    btn.textContent = p + 1;
+    btn.style.cssText = 'background:' + (p === currentPage ? 'var(--accent)' : 'var(--surface)') +
+      ';color:' + (p === currentPage ? '#000' : 'var(--text)') +
+      ';border:1px solid var(--border);border-radius:6px;font-size:13px;padding:6px 10px;cursor:pointer;margin:0 2px';
+    if (p !== currentPage) btn.addEventListener('click', () => { loadItems(p); document.getElementById('grid-wrap').scrollTop = 0; });
+    pageInfo.appendChild(btn);
+  }
+}
+
+function changePage(dir) {
+  loadItems(currentPage + dir);
+  document.getElementById('grid-wrap').scrollTop = 0;
+}
+
+// CARD
+function makeCard(item) {
+  const div = document.createElement('div');
+  div.className = 'media-card' + (selectedIds.has(item.id) ? ' selected' : '');
+  const ext = (item.ext || '').toLowerCase();
+  const isVideo = ['mp4','mov','avi','mkv','webm'].includes(ext);
+  const isAudio = ['mp3','wav','aac','flac','m4a'].includes(ext);
+  const thumbHtml = isAudio
+    ? '<div class="media-thumb" style="display:flex;align-items:center;justify-content:center;font-size:36px;background:var(--surface2)">🎵</div>'
+    : '<img class="media-thumb" src="' + thumbUrl(item) + '" loading="lazy" onerror="this.style.opacity=.2" alt="">';
+  div.innerHTML = thumbHtml +
+    (ext ? '<span class="media-ext">' + escHtml(ext) + '</span>' : '') +
+    (isVideo ? '<span class="video-badge">▶</span>' : '') +
+    '<div class="media-name">' + escHtml(item.name || 'untitled') + '</div>';
+  let pt;
+  let touchMoved = false;
+  let longPressed = false;
+  div.addEventListener('touchstart', e => {
+    touchMoved = false;
+    longPressed = false;
+    pt = setTimeout(() => {
+      longPressed = true;
+      toggleSelect(item.id, div);
+      navigator.vibrate && navigator.vibrate(30);
+    }, 600);
+  }, {passive:true});
+  div.addEventListener('touchmove', () => { touchMoved = true; clearTimeout(pt); }, {passive:true});
+  div.addEventListener('touchend', e => {
+    clearTimeout(pt);
+    if (longPressed || touchMoved) return; // 長押し・スクロールは無視
+    if (selectedIds.size > 0) toggleSelect(item.id, div);
+    else openLightbox(item);
+  });
+  div.addEventListener('contextmenu', e => e.preventDefault());
+  return div;
+}
+
+// SELECTION
+function toggleSelect(id, el) {
+  const wasEmpty = selectedIds.size === 0;
+  if (selectedIds.has(id)) { selectedIds.delete(id); el.classList.remove('selected'); }
+  else { selectedIds.add(id); el.classList.add('selected'); }
+  if (wasEmpty && selectedIds.size > 0) {
+    history.pushState({ kind: 'selection' }, '');
+  }
+  const bar = document.getElementById('bottom-bar');
+  if (selectedIds.size > 0) { bar.classList.add('visible'); document.getElementById('sel-count').textContent = selectedIds.size + ' 件選択'; }
+  else bar.classList.remove('visible');
+}
+function clearSelection() {
+  selectedIds.clear();
+  document.querySelectorAll('.media-card.selected').forEach(c => c.classList.remove('selected'));
+  document.getElementById('bottom-bar').classList.remove('visible');
+}
+function downloadSelected() {
+  selectedIds.forEach(id => { const item = itemsCache[id]; if (item) openFile(item); });
+  clearSelection();
+}
+
+// LIGHTBOX
+function openLightbox(item) {
+  currentItem = item;
+  document.getElementById('lb-title').textContent = item.name || 'untitled';
+  document.getElementById('lb-title').classList.remove('expanded');
+  document.getElementById('lightbox').classList.remove('expanded');
+  resetPinchZoom();
+
+  // lb-body内のメディアだけ差し替え（navボタンや情報バーは保持）
+  const body = document.getElementById('lb-body');
+  // 既存メディア要素を削除（ナビ関連は残す）
+  [...body.querySelectorAll('img, video, .lb-audio-holder')].forEach(el => el.remove());
+
+  const ext = (item.ext || '').toLowerCase();
+  const isVideo = ['mp4','mov','avi','mkv','webm'].includes(ext);
+  const isAudio = ['mp3','wav','aac','flac','m4a'].includes(ext);
+  if (isVideo) {
+    const v = document.createElement('video');
+    v.src = thumbUrl(item);
+    v.controls = true;
+    v.playsInline = true;
+    v.style.cssText = 'max-width:100%;max-height:100%';
+    body.appendChild(v);
+  } else if (isAudio) {
+    const d = document.createElement('div');
+    d.className = 'lb-audio-holder';
+    d.style.cssText = 'text-align:center';
+    d.innerHTML = '<div style="font-size:60px;margin-bottom:20px">🎵</div><p style="color:var(--muted)">' + escHtml(item.name||'') + '</p>';
+    body.appendChild(d);
+  } else {
+    const imgEl = document.createElement('img');
+    imgEl.src = _fullResCache[item.id] || thumbUrl(item);
+    if (_fullResCache[item.id]) {
+      imgEl.dataset.fullLoaded = '1';
+    }
+    imgEl.id = 'lb-img';
+    imgEl.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;cursor:zoom-in';
+    imgEl.title = 'タップでフル解像度表示';
+    setTimeout(() => {
+      imgEl.addEventListener('click', function() {
+        if (imgEl.dataset.fullLoaded === '1') {
+          // フル解像度取得済み → そのまま拡大モードに
+          document.getElementById('lightbox').classList.add('expanded');
+          attachPinchZoom();
+        } else if (imgEl.dataset.fullLoading === '1') {
+          // 読み込み中
+        } else {
+          imgEl.dataset.fullLoading = '1';
+          showToast('フル解像度を読み込み中…');
+          loadFullRes(imgEl, currentItem.id, currentItem.ext || '');
+        }
+      });
+    }, 300);
+    body.appendChild(imgEl);
+  }
+
+  renderEditableTags(item.tags || [], item.id);
+  renderLbMeta(item);
+  updateLbNav(item);
+
+  if (!document.getElementById('lightbox').classList.contains('open')) {
+    document.getElementById('lightbox').classList.add('open');
+    history.pushState({ kind: 'lightbox' }, '');
+    attachLightboxSwipe();
+  }
+}
+
+function toggleLbTitle() {
+  document.getElementById('lb-title').classList.toggle('expanded');
+}
+
+function toggleLbExpand() {
+  const lb = document.getElementById('lightbox');
+  const isExpanding = !lb.classList.contains('expanded');
+  const body = document.getElementById('lb-body');
+  const img = body.querySelector('img');
+
+  const doToggle = () => {
+    lb.classList.toggle('expanded', isExpanding);
+    const prev = document.getElementById('lb-nav-prev');
+    const next = document.getElementById('lb-nav-next');
+    if (prev) prev.style.display = isExpanding ? 'none' : '';
+    if (next) next.style.display = isExpanding ? 'none' : '';
+    if (isExpanding) attachPinchZoom();
+    else resetPinchZoom();
+    // フェードイン
+    if (img) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        img.style.transition = 'opacity 0.1s ease';
+        img.style.opacity = '1';
+      }));
+    }
+  };
+
+  if (img) {
+    img.style.transition = 'opacity 0.08s ease';
+    img.style.opacity = '0';
+    setTimeout(doToggle, 80);
+  } else {
+    doToggle();
+  }
+}
+
+// ピンチズーム実装
+let _pz = { scale: 1, tx: 0, ty: 0 };
+
+function attachPinchZoom() {
+  const body = document.getElementById('lb-body');
+  const img = body.querySelector('img');
+  if (!img) return;
+  _pz = { scale: 1, tx: 0, ty: 0 };
+  applyPinchTransform(img);
+  // origin:0 0 なので初期位置を調整（画像はwidth:100%なのでtxは0でよいが縦方向は中央寄せ）
+  const bh = body.clientHeight;
+  const ih = img.clientHeight;
+  if (ih > 0 && ih < bh) {
+    _pz.ty = (bh - ih) / 2;
+    applyPinchTransform(img);
+  }
+
+  // 透明オーバーレイで全面タッチを受け取る
+  const overlay = document.createElement('div');
+  overlay.className = 'pz-overlay';
+  body.appendChild(overlay);
+  body._pzOverlay = overlay;
+
+  let touchStartX = 0, touchStartY = 0, touchStartT = 0;
+  let lastTapX = 0, lastTapY = 0, lastTapT = 0;
+  let singleTapTimer = null;
+
+  overlay.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchStartT = Date.now();
+    }
+    handlePinchStart(e, img);
+  }, { passive: false });
+
+  overlay.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    handlePinchMove(e, img);
+  }, { passive: false });
+
+  overlay.addEventListener('touchend', (e) => {
+    handlePinchEnd(e);
+    if (e.changedTouches.length !== 1) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    const dist = Math.hypot(dx, dy);
+    const dt = Date.now() - touchStartT;
+
+    // スワイプ（ズームなし時のみ）: 60px以上・500ms以内 → 詳細に戻る
+    if (_pz.scale <= 1 && dist >= 60 && dt < 500) {
+      clearTimeout(singleTapTimer);
+      singleTapTimer = null;
+      lastTapT = 0;
+      toggleLbExpand();
+      return;
+    }
+
+    // タップ判定: 移動10px未満かつ200ms以内
+    if (dist >= 10 || dt > 200) return;
+
+    const now = Date.now();
+    const ddx = t.clientX - lastTapX;
+    const ddy = t.clientY - lastTapY;
+    if (now - lastTapT < 350 && Math.hypot(ddx, ddy) < 40) {
+      // ダブルタップ確定: シングルタップタイマーをキャンセル
+      clearTimeout(singleTapTimer);
+      singleTapTimer = null;
+      lastTapT = 0;
+      if (_pz.scale <= 1) {
+        const newScale = 2;
+        _pinchLocalX = (t.clientX - _pz.tx) / _pz.scale;
+        _pinchLocalY = (t.clientY - _pz.ty) / _pz.scale;
+        _pz.scale = newScale;
+        _pz.tx = t.clientX - _pinchLocalX * newScale;
+        _pz.ty = t.clientY - _pinchLocalY * newScale;
+        applyPinchTransform(img, true);
+      } else {
+        _pz = { scale: 1, tx: 0, ty: 0 };
+        applyPinchTransform(img, true);
+      }
+    } else {
+      lastTapT = now;
+      lastTapX = t.clientX;
+      lastTapY = t.clientY;
+      clearTimeout(singleTapTimer);
+      singleTapTimer = setTimeout(() => {
+        singleTapTimer = null;
+        // オーバーレイが既に削除されていれば（拡大モード解除済み）何もしない
+        if (!document.getElementById('lightbox').classList.contains('expanded')) return;
+        toggleLbExpand();
+      }, 360);
+    }
+  }, { passive: true });
+}
+
+function resetPinchZoom() {
+  const body = document.getElementById('lb-body');
+  const img = body.querySelector('img');
+  if (img) { img.style.transform = ''; img.style.transformOrigin = ''; }
+  if (body._pzOverlay) {
+    body._pzOverlay.remove();
+    delete body._pzOverlay;
+  }
+  _pz = { scale: 1, tx: 0, ty: 0 };
+}
+
+function applyPinchTransform(img, animate = false) {
+  // transform-origin: 0 0 基準: translate(tx,ty)scale(s) で
+  // 画像ローカル座標(lx,ly)はviewport上で(tx+lx*s, ty+ly*s)に表示される
+  img.style.transition = animate ? 'transform 0.12s ease' : 'none';
+  img.style.transformOrigin = '0 0';
+  img.style.transform = `translate(${_pz.tx}px, ${_pz.ty}px) scale(${_pz.scale})`;
+}
+
+let _pinchStartDist = 0, _pinchStartScale = 1;
+let _pinchLocalX = 0, _pinchLocalY = 0;
+let _panStartX = 0, _panStartY = 0;
+let _prevTouchCount = 0;
+
+function getDist(t1, t2) {
+  return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+}
+function getMid(t1, t2) {
+  return { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
+}
+
+function handlePinchStart(e, img) {
+  if (e.touches.length === 2) {
+    _pinchStartDist = getDist(e.touches[0], e.touches[1]);
+    _pinchStartScale = _pz.scale;
+    const mid = getMid(e.touches[0], e.touches[1]);
+    // ピンチ中心に対応する画像ローカル座標を記録
+    // viewport座標(midX,midY) → ローカル座標 = (midX - tx) / scale
+    _pinchLocalX = (mid.x - _pz.tx) / _pz.scale;
+    _pinchLocalY = (mid.y - _pz.ty) / _pz.scale;
+  } else if (e.touches.length === 1) {
+    _panStartX = e.touches[0].clientX - _pz.tx;
+    _panStartY = e.touches[0].clientY - _pz.ty;
+  }
+}
+
+function handlePinchMove(e, img) {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    const dist = getDist(e.touches[0], e.touches[1]);
+    const mid = getMid(e.touches[0], e.touches[1]);
+
+    // 初回またはピンチ距離が未設定の場合は再初期化
+    if (!_pinchStartDist) {
+      _pinchStartDist = dist;
+      _pinchStartScale = _pz.scale;
+      _pinchLocalX = (mid.x - _pz.tx) / _pz.scale;
+      _pinchLocalY = (mid.y - _pz.ty) / _pz.scale;
+    }
+
+    const newScale = Math.min(8, Math.max(1, _pinchStartScale * (dist / _pinchStartDist)));
+    _pz.scale = newScale;
+    _pz.tx = mid.x - _pinchLocalX * newScale;
+    _pz.ty = mid.y - _pinchLocalY * newScale;
+    applyPinchTransform(img);
+  } else if (e.touches.length === 1 && _pz.scale > 1) {
+    // ピンチから1本指パンへの切替時は基点を再設定
+    if (e.touches.length !== _prevTouchCount) {
+      _panStartX = e.touches[0].clientX - _pz.tx;
+      _panStartY = e.touches[0].clientY - _pz.ty;
+    }
+    e.preventDefault();
+    _pz.tx = e.touches[0].clientX - _panStartX;
+    _pz.ty = e.touches[0].clientY - _panStartY;
+    applyPinchTransform(img);
+  }
+  _prevTouchCount = e.touches.length;
+}
+
+function handlePinchEnd(e) {
+  _pinchStartDist = 0;
+  // 指が1本残っている場合はパン基点を再設定
+  if (e.touches.length === 1) {
+    _panStartX = e.touches[0].clientX - _pz.tx;
+    _panStartY = e.touches[0].clientY - _pz.ty;
+  }
+  if (_pz.scale <= 1) {
+    _pz = { scale: 1, tx: 0, ty: 0 };
+    const img = document.getElementById('lb-body')?.querySelector('img');
+    if (img) applyPinchTransform(img);
+  }
+}
+
+let _fullResCache = {}; // itemId → dataURL or objectURL のキャッシュ
+
+function loadFullRes(img, id, ext) {
+  if (img.dataset.fullLoaded === '1') return;
+  img.style.cursor = 'wait';
+
+  const applyFullRes = (url) => {
+    // フェードアウト → src切替 → フェードイン
+    img.style.transition = 'opacity 0.08s ease';
+    img.style.opacity = '0';
+    setTimeout(() => {
+      img.src = url;
+      img.style.cursor = 'default';
+      img.dataset.fullLoaded = '1';
+      img.dataset.fullLoading = '0';
+      document.getElementById('lightbox').classList.add('expanded');
+      const _prev = document.getElementById('lb-nav-prev');
+      const _next = document.getElementById('lb-nav-next');
+      if (_prev) _prev.style.display = 'none';
+      if (_next) _next.style.display = 'none';
+      attachPinchZoom();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        img.style.transition = 'opacity 0.1s ease';
+        img.style.opacity = '1';
+      }));
+    }, 75);
+  };
+
+  // キャッシュ済みなら即反映
+  if (_fullResCache[id]) {
+    applyFullRes(_fullResCache[id]);
+    return;
+  }
+
+  const fullUrl = BASE_URL + '/file?id=' + id + '&ext=' + encodeURIComponent(ext);
+  fetch(fullUrl).then(r => r.blob()).then(blob => {
+    const url = URL.createObjectURL(blob);
+    _fullResCache[id] = url;
+    applyFullRes(url);
+  }).catch(() => {
+    img.style.cursor = 'zoom-in';
+    img.dataset.fullLoading = '0';
+    showToast('フル解像度の読み込みに失敗しました');
+  });
+}
+function renderLbMeta(item) {
+  const dates = document.getElementById('lb-meta-dates');
+  const fmt = (ts) => {
+    if (!ts) return '不明';
+    const d = new Date(ts);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${y}/${m}/${day} ${hh}:${mm}`;
+  };
+  dates.innerHTML =
+    `<span>作成: ${fmt(item.btime)}</span>` +
+    `<span>更新: ${fmt(item.mtime)}</span>`;
+
+  // 星評価
+  const star = item.star || 0;
+  document.querySelectorAll('#lb-stars .lb-star[data-star]').forEach(el => {
+    const n = parseInt(el.dataset.star, 10);
+    el.classList.toggle('active', n <= star);
+  });
+}
+
+// 前後ナビボタンの有効/無効を更新
+function updateLbNav(item) {
+  const prev = document.getElementById('lb-nav-prev');
+  const next = document.getElementById('lb-nav-next');
+  const info = document.getElementById('lb-nav-info');
+  if (!currentViewItems || currentViewItems.length === 0) {
+    prev.disabled = true;
+    next.disabled = true;
+    info.style.display = 'none';
+    return;
+  }
+  const idx = currentViewItems.findIndex(i => i.id === item.id);
+  if (idx === -1) {
+    prev.disabled = true;
+    next.disabled = true;
+    info.style.display = 'none';
+    return;
+  }
+  prev.disabled = idx === 0;
+  next.disabled = idx === currentViewItems.length - 1;
+  info.style.display = 'block';
+  info.textContent = `${idx + 1} / ${currentViewItems.length}`;
+}
+
+// ライトボックス内の前後ナビ
+function navigateLightbox(direction) {
+  // 拡大モード中はスワイプナビ無効
+  if (document.getElementById('lightbox').classList.contains('expanded')) return;
+  if (!currentItem || !currentViewItems.length) return;
+  const idx = currentViewItems.findIndex(i => i.id === currentItem.id);
+  if (idx === -1) return;
+  const nextIdx = idx + direction;
+  if (nextIdx < 0 || nextIdx >= currentViewItems.length) return;
+  openLightbox(currentViewItems[nextIdx]);
+}
+
+// スワイプジェスチャー
+let _lbSwipeAttached = false;
+function attachLightboxSwipe() {
+  if (_lbSwipeAttached) return;
+  _lbSwipeAttached = true;
+  const body = document.getElementById('lb-body');
+  let startX = 0, startY = 0, startT = 0;
+  body.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) { startT = 0; return; }
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    startT = Date.now();
+  }, { passive: true });
+  body.addEventListener('touchend', e => {
+    if (!startT) return;
+    const dt = Date.now() - startT;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+    startT = 0;
+    // 横方向が支配的 かつ 一定以上の距離 かつ 短時間
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5 && dt < 500) {
+      if (document.getElementById('lightbox').classList.contains('expanded')) return;
+      if (dx < 0) navigateLightbox(1);
+      else navigateLightbox(-1);
+    }
+  }, { passive: true });
+  // キーボードでも動くように
+  document.addEventListener('keydown', e => {
+    if (!document.getElementById('lightbox').classList.contains('open')) return;
+    if (e.key === 'ArrowLeft') navigateLightbox(-1);
+    else if (e.key === 'ArrowRight') navigateLightbox(1);
+  });
+}
+function closeLightbox() {
+  const lb = document.getElementById('lightbox');
+  lb.classList.remove('open');
+  lb.classList.remove('expanded');
+  resetPinchZoom();
+  const body = document.getElementById('lb-body');
+  [...body.querySelectorAll('img, video, .lb-audio-holder')].forEach(el => el.remove());
+  currentItem = null;
+}
+// ==== QUERY HISTORY ====
+// 検索・ソート・フィルタの変更履歴を保持し、戻るジェスチャで遡れるようにする
+let suppressHistoryPush = false; // 復元中はpushStateを抑制
+function snapshotQueryState() {
+  return {
+    kind: 'query',
+    currentKeyword,
+    andTags: andTags.slice(),
+    currentSort,
+    ratingFilter,
+    currentFilter,
+    currentSmartFolder,
+    currentFolderType,
+    currentPage,
+    searchInputValue: document.getElementById('search-input')?.value || '',
+  };
+}
+function pushQueryState() {
+  if (suppressHistoryPush) return;
+  const snap = snapshotQueryState();
+  // 直前のstateと同一ならpushしない（無意味な履歴を避ける）
+  const cur = history.state;
+  if (cur && cur.kind === 'query'
+      && cur.currentKeyword === snap.currentKeyword
+      && cur.currentSort === snap.currentSort
+      && cur.ratingFilter === snap.ratingFilter
+      && cur.currentSmartFolder === snap.currentSmartFolder
+      && cur.currentPage === snap.currentPage
+      && JSON.stringify(cur.andTags) === JSON.stringify(snap.andTags)) {
+    return;
+  }
+  // 最初のquery stateはreplaceで土台に、以降はpush
+  if (!cur || cur.kind !== 'query') {
+    history.replaceState(snap, '');
+  } else {
+    history.pushState(snap, '');
+  }
+}
+function restoreQueryState(s) {
+  suppressHistoryPush = true;
+  try {
+    currentKeyword = s.currentKeyword || '';
+    andTags = Array.isArray(s.andTags) ? s.andTags.slice() : [];
+    currentSort = s.currentSort || '-CREATEDATE';
+    ratingFilter = (typeof s.ratingFilter === 'number') ? s.ratingFilter : -1;
+    currentFilter = s.currentFilter || 'all';
+    currentSmartFolder = s.currentSmartFolder || null;
+    currentFolderType = s.currentFolderType || 'folder';
+    currentPage = s.currentPage || 0;
+    // UIに反映
+    const si = document.getElementById('search-input');
+    if (si) {
+      si.value = s.searchInputValue || '';
+      document.getElementById('search-clear').classList.toggle('visible', !!si.value);
+    }
+    const ss = document.getElementById('sort-select');
+    if (ss) ss.value = currentSort;
+    const rs = document.getElementById('rating-select');
+    if (rs) rs.value = String(ratingFilter);
+    updateRatingSelectStyle();
+    renderAndChips();
+    if (typeof renderSmartFolderList === 'function') renderSmartFolderList();
+    loadItems(currentPage);
+  } finally {
+    // loadItemsは非同期なので少し遅らせて解除
+    setTimeout(() => { suppressHistoryPush = false; }, 100);
+  }
+}
+
+window.addEventListener('popstate', function(ev) {
+  const s = ev.state;
+  // ライトボックスが開いていれば閉じる
+  if (document.getElementById('lightbox').classList.contains('open')) {
+    closeLightbox();
+    return;
+  }
+  if (selectedIds.size > 0) {
+    clearSelection();
+    return;
+  }
+  // AI検索状態の復元
+  if (s && s.kind === 'ai' && s.itemId) {
+    const item = itemsCache[s.itemId] || { id: s.itemId };
+    _runAiSearchById(item);
+    return;
+  }
+  if (s && s.kind === 'ai_base64' && _lastAiBase64) {
+    _runAiSearchByBase64(_lastAiBase64);
+    return;
+  }
+  // 通常検索状態の復元
+  if (s && s.kind === 'query') {
+    restoreQueryState(s);
+  }
+});
+function searchByTag(tag) {
+  closeLightbox();
+  document.getElementById('search-input').value = tag;
+  document.getElementById('search-clear').classList.add('visible');
+  currentKeyword = tag;
+  loadItems(0);
+}
+
+// 画像タップ → フル解像度ページに遷移
+// OPEN FILE
+function downloadItem(item) { if (item) openFile(item); }
+function openFile(item) {
+  const a = document.createElement('a');
+  a.href = '/file?id=' + item.id + '&ext=' + encodeURIComponent(item.ext || '');
+  a.download = (item.name || 'eagle') + '.' + (item.ext || '');
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// AI SIMILARITY SEARCH
+let aiSearchMode = false;
+
+async function searchSimilar() {
+  if (!currentItem) return;
+  const readyRes = await apiGet('/api/v2/aiSearch/isReady').catch(() => null);
+  if (!readyRes || !readyRes.data) {
+    showToast('AI Search が利用できません');
+    return;
+  }
+  const savedItem = currentItem;
+  closeLightbox();
+  currentItem = savedItem;
+
+  // AI検索状態を履歴に積む（戻るジェスチャで復元できるように）
+  history.pushState({ kind: 'ai', itemId: savedItem.id }, '');
+
+  await _runAiSearchById(savedItem);
+}
+
+async function _runAiSearchById(savedItem) {
+  aiSearchMode = true;
+  document.getElementById('result-count').textContent = '類似画像検索中…';
+  const grid = document.getElementById('media-grid');
+  grid.innerHTML = '';
+  const status = document.getElementById('grid-status');
+  status.innerHTML = '<div class="loader"></div><br>類似画像を検索中…';
+  status.style.display = 'block';
+
+  try {
+    const res = await apiV2Post('/api/v2/aiSearch/searchByItemId', {
+      itemId: savedItem.id,
+      options: { limit: 100 }
+    });
+    const results = res.data?.results || res.results || [];
+    status.style.display = 'none';
+    document.getElementById('result-count').textContent = String(results.length);
+
+    if (!results.length) {
+      status.innerHTML = '類似画像が見つかりませんでした';
+      status.style.display = 'block';
+      return;
+    }
+
+    currentViewItems = [];
+    for (const r of results) {
+      const item = r.item;
+      if (!item) continue;
+      itemsCache[item.id] = item;
+      currentViewItems.push(item);
+      const card = makeCard(item);
+      const badge = document.createElement('span');
+      badge.className = 'ai-result-badge';
+      badge.textContent = Math.round(r.score * 100) + '%';
+      card.style.position = 'relative';
+      card.appendChild(badge);
+      grid.appendChild(card);
+    }
+
+    document.getElementById('pager').style.display = 'flex';
+    document.getElementById('page-info').innerHTML =
+      '<button onclick="exitAiSearch()" style="background:#333;color:#e0e0e0;border:1px solid #555;border-radius:6px;font-size:12px;padding:6px 12px;cursor:pointer">✕ 類似検索を終了</button>';
+    document.getElementById('prev-btn').style.display = 'none';
+    document.getElementById('next-btn').style.display = 'none';
+  } catch(e) {
+    status.innerHTML = '❌ AI検索エラー: ' + e.message;
+    status.style.display = 'block';
+    document.getElementById('result-count').textContent = '';
+  }
+}
+
+function exitAiSearch() {
+  aiSearchMode = false;
+  document.getElementById('prev-btn').style.display = '';
+  document.getElementById('next-btn').style.display = '';
+  loadItems(0);
+}
+
+function triggerImageSearch() {
+  document.getElementById('ai-image-input').value = '';
+  document.getElementById('ai-image-input').click();
+}
+
+let _lastAiBase64 = null; // 最後にアップロードした画像のBase64（戻る復元用）
+
+async function searchByUploadedImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const readyRes = await apiGet('/api/v2/aiSearch/isReady').catch(() => null);
+  if (!readyRes || !readyRes.data) {
+    showToast('AI Search が利用できません');
+    return;
+  }
+
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  _lastAiBase64 = base64; // 復元用に保持
+  history.pushState({ kind: 'ai_base64' }, '');
+  await _runAiSearchByBase64(base64);
+}
+
+async function _runAiSearchByBase64(base64) {
+  aiSearchMode = true;
+  document.getElementById('result-count').textContent = '類似画像検索中…';
+  const grid = document.getElementById('media-grid');
+  grid.innerHTML = '';
+  const status = document.getElementById('grid-status');
+  status.innerHTML = '<div class="loader"></div><br>画像から類似画像を検索中…';
+  status.style.display = 'block';
+
+  try {
+    const res = await apiV2Post('/api/v2/aiSearch/searchByBase64', {
+      base64,
+      options: { limit: 100 }
+    });
+    const results = res.data?.results || res.results || [];
+    status.style.display = 'none';
+    document.getElementById('result-count').textContent = String(results.length);
+
+    if (!results.length) {
+      status.innerHTML = '類似画像が見つかりませんでした';
+      status.style.display = 'block';
+      return;
+    }
+
+    currentViewItems = [];
+    for (const r of results) {
+      const item = r.item;
+      if (!item) continue;
+      itemsCache[item.id] = item;
+      currentViewItems.push(item);
+      const card = makeCard(item);
+      const badge = document.createElement('span');
+      badge.className = 'ai-result-badge';
+      badge.textContent = Math.round(r.score * 100) + '%';
+      card.style.position = 'relative';
+      card.appendChild(badge);
+      grid.appendChild(card);
+    }
+
+    document.getElementById('pager').style.display = 'flex';
+    document.getElementById('page-info').innerHTML =
+      '<button onclick="exitAiSearch()" style="background:#333;color:#e0e0e0;border:1px solid #555;border-radius:6px;font-size:12px;padding:6px 12px;cursor:pointer">✕ 類似検索を終了</button>';
+    document.getElementById('prev-btn').style.display = 'none';
+    document.getElementById('next-btn').style.display = 'none';
+  } catch(e) {
+    status.innerHTML = '❌ AI検索エラー: ' + e.message;
+    status.style.display = 'block';
+    document.getElementById('result-count').textContent = '';
+  }
+}
+
+// TAG EDITING
+
+function renderEditableTags(tags, itemId) {
+  const el = document.getElementById('lb-tags');
+  el.classList.remove('expanded');
+  el.innerHTML = tags.map(t =>
+    '<span class="editable-tag">' +
+    '<span onclick="searchByTag(\'' + escHtml(t) + '\')">' + escHtml(t) + '</span>' +
+    '<span class="editable-tag-x" onclick="removeTagFromItem(\'' + escHtml(t) + '\')">×</span>' +
+    '</span>'
+  ).join('');
+  // タグが多い場合はトグルボタン表示
+  const toggle = document.getElementById('lb-tags-toggle');
+  if (el.scrollHeight > 130) {
+    toggle.textContent = '▼ すべて表示 (' + tags.length + '件)';
+    toggle.style.display = 'block';
+  } else {
+    toggle.style.display = 'none';
+  }
+  const input = document.getElementById('lb-tag-input');
+  input.onkeydown = e => { if (e.key === 'Enter') { addTagToItem(); closeTagAC(); } };
+}
+
+function toggleLbTags() {
+  const el = document.getElementById('lb-tags');
+  const toggle = document.getElementById('lb-tags-toggle');
+  const expanded = el.classList.toggle('expanded');
+  toggle.textContent = expanded ? '▲ 折りたたむ' : '▼ すべて表示 (' + (currentItem?.tags?.length || 0) + '件)';
+}
+
+function onTagInputAC(q) {
+  if (!q) { closeTagAC(); return; }
+  const ql = q.toLowerCase();
+  const matches = allTags.filter(t => t.toLowerCase().includes(ql) && !(currentItem?.tags||[]).includes(t)).slice(0, 8);
+  const ac = document.getElementById('lb-tag-ac');
+  if (!matches.length) { closeTagAC(); return; }
+  ac.innerHTML = matches.map(t => {
+    const hi = escHtml(t).replace(new RegExp('(' + escRegex(escHtml(q)) + ')', 'gi'), '<em>$1</em>');
+    return '<div class="tag-ac-item" onclick="selectTagAC(\'' + escHtml(t) + '\')">' + hi + '</div>';
+  }).join('');
+  ac.classList.add('open');
+}
+
+function selectTagAC(tag) {
+  document.getElementById('lb-tag-input').value = tag;
+  closeTagAC();
+  addTagToItem();
+}
+
+function closeTagAC() {
+  document.getElementById('lb-tag-ac').classList.remove('open');
+}
+
+async function addTagToItem() {
+  if (!currentItem) return;
+  const input = document.getElementById('lb-tag-input');
+  const tag = input.value.trim();
+  if (!tag) return;
+  const isNewTag = !allTags.includes(tag);
+  const newTags = [...new Set([...(currentItem.tags || []), tag])];
+  await updateItemTags(currentItem.id, newTags, { markNeeded: isNewTag });
+  currentItem.tags = newTags;
+  itemsCache[currentItem.id] = currentItem;
+  renderEditableTags(newTags, currentItem.id);
+  input.value = '';
+  showToast('タグを追加しました');
+  if (isNewTag) { allTags.push(tag); allTags.sort(); }
+}
+
+async function removeTagFromItem(tag) {
+  if (!currentItem) return;
+  const newTags = (currentItem.tags || []).filter(t => t !== tag);
+  await updateItemTags(currentItem.id, newTags, { markNeeded: true });
+  currentItem.tags = newTags;
+  itemsCache[currentItem.id] = currentItem;
+  renderEditableTags(newTags, currentItem.id);
+  showToast('タグを削除しました');
+}
+
+async function updateItemTags(id, tags, {markNeeded = false} = {}) {
+  try {
+    const res = await fetch(BASE_URL + '/api/item/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, tags })
+    });
+    const data = await res.json();
+    if (data.status !== 'success') {
+      showToast('更新失敗: ' + (data.message || ''));
+    } else if (markNeeded) {
+      markReloadNeeded();
+    }
+  } catch(e) {
+    showToast('エラー: ' + e.message);
+  }
+}
+
+async function setItemStar(star) {
+  if (!currentItem) return;
+  const id = currentItem.id;
+  const prev = currentItem.star || 0;
+  // 楽観更新（UIを即座に反映）
+  currentItem.star = star;
+  itemsCache[id] = currentItem;
+  renderLbMeta(currentItem);
+  try {
+    const res = await fetch(BASE_URL + '/api/item/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, star })
+    });
+    const data = await res.json();
+    if (data.status !== 'success') {
+      // ロールバック
+      currentItem.star = prev;
+      renderLbMeta(currentItem);
+      showToast('評価更新失敗: ' + (data.message || ''));
+    } else {
+      showToast(star ? ('★' + star + ' に設定しました') : '評価を解除しました');
+    }
+  } catch(e) {
+    currentItem.star = prev;
+    renderLbMeta(currentItem);
+    showToast('エラー: ' + e.message);
+  }
+}
+
+// BULK TAG
+function openBulkModal() {
+  if (!selectedIds.size) return;
+  document.getElementById('bulk-count').textContent = selectedIds.size + ' 件のアイテム';
+  document.getElementById('bulk-tag-overlay').style.display = 'block';
+  const sheet = document.getElementById('bulk-tag-sheet');
+  sheet.style.display = 'block';
+  requestAnimationFrame(() => sheet.style.transform = 'translateY(0)');
+  const input = document.getElementById('bulk-tag-input');
+  input.value = '';
+  document.getElementById('bulk-tag-ac').style.display = 'none';
+  input.onkeydown = e => { if (e.key === 'Enter') bulkAddTag(); };
+
+  // 共通タグを計算して表示
+  const ids = [...selectedIds];
+  const tagSets = ids.map(id => new Set((itemsCache[id]?.tags || [])));
+  let commonTags = [...tagSets[0]].filter(t => tagSets.every(s => s.has(t))).sort();
+  const el = document.getElementById('bulk-common-tags');
+  if (commonTags.length) {
+    el.innerHTML = commonTags.map(t =>
+      '<span class="editable-tag" style="cursor:pointer" onclick="bulkRemoveTag(\'' + escHtml(t) + '\')">' +
+      escHtml(t) + ' <span style="color:#e53935">×</span></span>'
+    ).join('');
+  } else {
+    el.innerHTML = '<span style="color:var(--muted);font-size:11px">共通タグなし</span>';
+  }
+
+  setTimeout(() => input.focus(), 350);
+}
+
+function onBulkTagInputAC(q) {
+  const ac = document.getElementById('bulk-tag-ac');
+  if (!q) { ac.style.display = 'none'; return; }
+  const ql = q.toLowerCase();
+  const matches = allTags.filter(t => t.toLowerCase().includes(ql)).slice(0, 8);
+  if (!matches.length) { ac.style.display = 'none'; return; }
+  ac.innerHTML = matches.map(t => {
+    const hi = escHtml(t).replace(new RegExp('(' + escRegex(escHtml(q)) + ')', 'gi'), '<em>$1</em>');
+    return '<div class="tag-ac-item" onclick="selectBulkTagAC(\'' + escHtml(t) + '\')">' + hi + '</div>';
+  }).join('');
+  ac.style.display = 'block';
+}
+
+function selectBulkTagAC(tag) {
+  document.getElementById('bulk-tag-input').value = tag;
+  document.getElementById('bulk-tag-ac').style.display = 'none';
+  bulkAddTag();
+}
+function closeBulkModal() {
+  const sheet = document.getElementById('bulk-tag-sheet');
+  sheet.style.transform = 'translateY(100%)';
+  setTimeout(() => {
+    sheet.style.display = 'none';
+    document.getElementById('bulk-tag-overlay').style.display = 'none';
+  }, 300);
+}
+async function bulkRemoveTag(tag) {
+  showToast('削除中…');
+  let count = 0;
+  for (const id of selectedIds) {
+    const item = itemsCache[id];
+    if (!item) continue;
+    const newTags = (item.tags || []).filter(t => t !== tag);
+    await updateItemTags(id, newTags, { markNeeded: true });
+    item.tags = newTags;
+    count++;
+  }
+  showToast(count + ' 件から「' + tag + '」を削除しました');
+  // 共通タグ表示を更新
+  openBulkModal();
+}
+
+async function bulkAddTag() {
+  const tag = document.getElementById('bulk-tag-input').value.trim();
+  if (!tag) return;
+  showToast('更新中…');
+  let count = 0;
+  for (const id of selectedIds) {
+    const item = itemsCache[id];
+    if (!item) continue;
+    const newTags = [...new Set([...(item.tags || []), tag])];
+    await updateItemTags(id, newTags);
+    item.tags = newTags;
+    count++;
+  }
+  closeBulkModal();
+  showToast(count + ' 件にタグを追加しました');
+  if (!allTags.includes(tag)) { allTags.push(tag); allTags.sort(); }
+}
+
+// UTILS
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3000);
+}
+</script>
+</body>
+</html>
